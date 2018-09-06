@@ -1,0 +1,47 @@
+\documentclass{beamer}
+
+\usepackage[utf8]{inputenc}
+\usepackage{ragged2e} %for justifying texts within frame usage
+\usepackage{hyperref}
+\usetheme{Madrid}
+\usepackage{appendixnumberbeamer}
+
+\makeatletter
+\newcommand\HREF[2]{\hyper@linkurl{#2}{#1}}
+\makeatother
+
+\DeclareMathOperator{\Tr}{Tr}
+
+%Information to be included in the title page:
+\title[Data Preprocessing]{Data Preprocessing for}
+\subtitle{Pose Estimation \& Prediction with Geodesic Regression on SE(3)}
+\author{Wu Shuang}
+\date{May 2018}
+
+\begin{document}
+
+\begin{frame} [label=inverse]
+\frametitle{Supplementary Details on Inverse Kinematics}
+Click \hyperref{DataPreprocessing.pdf}{page}{11}{\beamerbutton{here}} to go back.
+\begin{itemize}
+\justifying
+\item $t_0$ is just the coordinates of joint 0 in the world reference frame.
+\item For $i>0$, $t_i=\left(\begin{matrix} l_i \\ 0 \\ 0 \end{matrix}\right)$ where $l_i$ is the length of the $i$-th bone.
+\item To compute the axis-angle parameters $\omega_i$, denote the unit vectors of bone $i$ and $i+1$ as $u,v$ respectively. Bone $0$ is $\hat{x}=\left(\begin{matrix} 1 \\ 0 \\ 0 \end{matrix}\right)$. The axis-angle parameters aligning the x-axis of reference frames from joint $i$ to joint $i+1$ is given by $\frac{u\times v}{\lVert u\times v \rVert} \arccos(u\cdot v)$.
+\item Hint: Do this in reverse fashion, i.e. start by finding the parameters for aligning the last bone.
+\end{itemize}
+\end{frame}
+
+\begin{frame} [label=forward]
+\frametitle{Supplementary Details on Forward Kinematics}
+Click \hyperref{DataPreprocessing.pdf}{page}{13}{\beamerbutton{here}} to go back.
+\begin{itemize}
+\justifying
+\item Given $\xi=\left(\begin{matrix} \omega \\ t \end{matrix}\right)\in\mathfrak{se}(3)$, the SE(3) matrix representation is $$e^{\xi}\equiv\left(\begin{matrix} R(\omega) & T \\ 0 & 1 \end{matrix}\right)$$ where $R(\omega)$ is given in \hyperref{DataPreprocessing.pdf}{page}{8}{\beamerbutton{the axis-angle representation}}.
+\item The 3D coordinates of joint $i$ in the world reference frame is simply given by the first 3 entries in
+$$e^{\xi_0}e^{\xi_1} \cdots e^{\xi_i} \left(\begin{matrix} 0 \\ 0 \\ 0 \\1 \end{matrix}\right).$$
+\item Why?
+\end{itemize}
+\end{frame}
+
+\end{document}

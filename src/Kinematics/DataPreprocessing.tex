@@ -1,0 +1,166 @@
+\documentclass{beamer}
+
+\usepackage[utf8]{inputenc}
+\usepackage{ragged2e} %for justifying texts within frame usage
+\usepackage{etoolbox}
+\apptocmd{\frame}{}{\justifying}{} % Allow optional arguments after frame.
+\usepackage{hyperref}
+\usetheme{Madrid}
+\usepackage{appendixnumberbeamer}
+\DeclareMathOperator{\Tr}{Tr}
+
+%Information to be included in the title page:
+\title[Data Preprocessing]{Data Preprocessing for}
+\subtitle{Pose Estimation \& Prediction with Geodesic Regression on SE(3)}
+\author{Wu Shuang}
+\date{May 2018}
+
+\begin{document}
+	
+\frame{\titlepage}
+\AtBeginSection[]
+{
+\begin{frame}
+\frametitle{Table of Contents}
+\tableofcontents[currentsection]
+\end{frame}
+}
+
+\section{Preliminaries}
+
+\begin{frame}
+\frametitle{Modelling Articulate Objects with Kinematic Chains}
+\begin{itemize}
+	\justifying
+	\item The problem of 3D pose estimation / prediction in articulate objects assumes an anatomically motivated skeletal structure.
+	\item The predefined set of keypoints correspond to joint locations of the skeletal structure.
+	\item A kinematic chain is a model for the skeletal structure (an assembly of bones connected and constrained by the joints).
+	\item Since bones are rigid, any pose configuration can be represented as an ordered set of rigid transformations.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Illustration of Skeletal Models}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{Figures/models.pdf}
+%\vspace{-3mm}
+\caption
+{An illustration of the skeletal models adopted for three different articulate objects: (from left to right) fish, mouse, and human hand. }
+\label{fig:skeletalmodel}
+\end{figure}
+The rigid transformation connecting two joints is an element of the Special Euclidean SE(3) Lie group. Moving along a root joint to an end effector constitutes a kinematic chain and the ordered set of SE(3) transformations characterizes the pose.
+\end{frame}
+
+\begin{frame}
+\frametitle{Rigid transformations and SE(3) group}
+\begin{itemize}
+\justifying
+\item A rigid transformation in 3D consists of a rotation and a translation.
+\item Any rigid transformation can be represented as matrices of the form $$\left(\begin{matrix} R & T \\ 0 & 1 \end{matrix}\right)$$
+where $R$ is a $3\times3$ rotation matrix and $T$ is a 3D translation vector.
+\item The set of all rigid transformations, together with the composition operation is a group structure known as the SE(3) group.
+\end{itemize}
+\begin{block}{Remark}
+\justifying
+In the above representation, composition of rigid transformations correspond to matrix multiplication. Check that SE(3) matrices indeed form a group.
+\end{block}
+\end{frame}
+
+\begin{frame}
+\frametitle{$\mathfrak{se}(3)$ Lie algebra}
+\begin{itemize}
+\justifying
+\item In addition to its group structure, SE(3) also has a manifold structure (locally resembles \footnote{The technical term is diffeomorphism. An intuitive example of a manifold is the Earth which, as a spherical manifold, locally resembles a plane.} $\mathbb{R}^n$).
+\item Technically, SE(3) is known as a Lie group and the tangent space at its identity is known as its Lie algebra $\mathfrak{se}(3)$.
+\item The dimension of SE(3) and $\mathfrak{se}(3)$ is 6; every rigid transformation can be fully parametrized by 6 Lie algebra parameters.
+\item The goal is to obtain the Lie algebra parametrization of a pose given the 3D joint locations (inverse kinematics) and vice versa (forward kinematics).
+\end{itemize}
+\begin{block}{Remark}
+\justifying
+Lie groups are geometric objects, i.e. manifolds while Lie algebras are linear objects, i.e. vector spaces. For this reason, it is advantageous to use Lie algebra parameters over the SE(3) matrix representation.
+\end{block}
+\end{frame}
+
+\begin{frame} [label=SEtose]
+\frametitle{Connecting the SE(3) matrix representation and $\mathfrak{se}(3)$ parameters}
+\begin{itemize}
+\justifying
+\item The matrix exponential is a surjective map from $\mathfrak{se}(3)$ to SE(3) and the inverse is given by the matrix logarithm map.
+\item Given $\left(\begin{matrix} R & T \\ 0 & 1 \end{matrix}\right)$, we obtain the $\mathfrak{se}(3)$ parametrization $\xi=\left(\begin{matrix} \omega \\ t \end{matrix}\right)$ where $\omega$ corresponds to the \href{https://en.wikipedia.org/wiki/Axis-angle_representation}{\alert{axis-angle representation}} of the rotation $R$ while $t$ can be identified with $T$ \footnote{Technically, $t\neq T$ but the correct expression for $t$ will not be useful for our project. For all practical purpose, it is sufficient to assign $t=T$.}.
+\item For the axis-angle representation $\omega =\theta\hat{n}$, the angle of rotation is given by $\theta=\arccos\left(\frac{\Tr(R)-1}{2}\right)$ while the axis is given by
+$$\hat{n}=\frac{1}{2\sin\theta}\left(\begin{matrix} R(3,2)- R(2,3) \\ R(1,3) -R(3,1) \\ R(2,1) - R(1,2) \end{matrix}\right).$$
+\end{itemize}
+\end{frame}
+
+\begin{frame} [label=omegatoR]
+\frametitle{Connecting the SE(3) matrix representation and $\mathfrak{se}(3)$ parameters}
+\begin{itemize}
+\justifying
+\item Given the axis-angle representation $\omega =\theta\hat{n}$, the rotation matrix is obtained as $$R=I+\sin\theta\hat{n}_{\times}+(1-\cos\theta)\hat{n}_{\times}^2$$ where
+$$\hat{n}_{\times}=\left(\begin{matrix}0 & -\hat{n}_3 & \hat{n}_2 \\ \hat{n}_3 & 0 & -\hat{n}_1 \\ -\hat{n}_2 & \hat{n}_1 & 0\end{matrix}\right).$$
+\end{itemize}
+\end{frame}
+
+\section{Inverse Kinematics}
+\begin{frame}
+\frametitle{Parametrizing a Kinematic Chain with $\mathfrak{se}(3)$}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.5\textwidth]{Figures/KinematicChain.png}
+%\vspace{-3mm}
+\caption
+{An illustration of a kinematic chain with n+1 joints and n bones; n=3.}
+\label{fig:kinematicchain}
+\end{figure}
+\begin{itemize}
+\justifying
+\item Joint 0: Base joint, Joint 1-2: Internal joints, Joint 3: End effector
+\item A local coordinate system is defined at each joint such that the x-axis of joint $i$ aligns with bone $i+1$.
+\item The coordinate transformation is effectuated by $\xi_i$:\\
+$\xi_0$ transforms the world reference frame to the local coordinates system of at joint 0; $\xi_1$ transforms the local coordinates system at joint 0 to the local coordinates system at joint 1 and so on $\cdots$
+\end{itemize}
+\end{frame}
+\begin{frame}
+Now you are ready to implement the inverse kinematics in \href{run:./inverse.m}{\beamerbutton{inverse.m}}.
+
+If you need hints, click
+%\hyperlink{inverse}{\beamerbutton{here}}.
+\hyperref{Supplementary.pdf}{page}{1}{\beamerbutton{here}}.
+\end{frame}
+
+\section{Forward Kinematics}
+\begin{frame}{Computing Joint Locations given $\mathfrak{se}(3)$ parameters}
+Once you have obtained the $\mathfrak{se}(3)$ parameters, implement the forward kinematics in \href{run:./forward.m}{\beamerbutton{forward.m}}.
+
+If you need hints, click
+%\hyperlink{forward}{\beamerbutton{here}}.
+\hyperref{Supplementary.pdf}{page}{2}{\beamerbutton{here}}.
+\end{frame}
+
+\appendix
+\begin{frame} <0> [label=inverse]
+\frametitle{Supplementary Details on Inverse Kinematics}
+Click \href[page=11]{DataPreprocessing.pdf}{\beamerbutton{here}} to go back.
+\begin{itemize}
+\justifying
+\item $t_0$ is just the coordinates of joint 0 in the world reference frame.
+\item For $i>0$, $t_i=\left(\begin{matrix} l_i \\ 0 \\ 0 \end{matrix}\right)$ where $l_i$ is the length of the $i$-th bone.
+\item To compute the axis-angle parameters $\omega_i$, denote the unit vectors of bone $i$ and $i+1$ as $u,v$ respectively. Bone $0$ is $\hat{x}=\left(\begin{matrix} 1 \\ 0 \\ 0 \end{matrix}\right)$. The axis-angle parameters aligning the x-axis of reference frames from joint $i$ to joint $i+1$ is given by $\frac{u\times v}{\lVert u\times v \rVert} \arccos(u\cdot v)$.
+\item Hint: Do this in reverse fashion, i.e. start by finding the parameters for aligning the last bone.
+\end{itemize}
+\end{frame}
+
+\begin{frame} <0> [label=forward]
+\frametitle{Supplementary Details on Forward Kinematics}
+Click \href[page=13]{DataPreprocessing.pdf}{\beamerbutton{here}} to go back.
+\begin{itemize}
+\justifying
+\item Given $\xi=\left(\begin{matrix} \omega \\ t \end{matrix}\right)\in\mathfrak{se}(3)$, the SE(3) matrix representation is $$e^{\xi}\equiv\left(\begin{matrix} R(\xi) & T \\ 0 & 1 \end{matrix}\right)$$ where $R(\xi)$ is given in \hyperlink{omegatoR}{\beamerbutton{the axis-angle representation}}.
+\item The 3D coordinates of joint $i$ in the world reference frame is simply given by the first 3 entries in
+$$e^{\xi_0}e^{\xi_1} \cdots e^{\xi_i} \left(\begin{matrix} 0 \\ 0 \\ 0 \\1 \end{matrix}\right).$$
+\item Why?
+\end{itemize}
+\end{frame}
+
+\end{document}

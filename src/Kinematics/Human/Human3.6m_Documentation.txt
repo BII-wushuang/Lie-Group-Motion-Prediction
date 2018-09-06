@@ -1,0 +1,9 @@
+1.CDF_to_joint_xyz.m
+Select 23 joints from raw *.cdf file. Represent the human body with 5 chains with replicated joints 1 and 13. The resulting representation has 27 joints and is saved as joint_xyz.mat (size: nframes x 27 x 3).
+
+2.inverse.m
+Convert the joint xyz coordinates representation to lie group parameters which is saved to lie_parameters.mat (size: nframes x 27 x 6)
+
+3.forward.m
+Convert lie_parameters back to xyz coordinates and save data as joint_xyz_f.mat (size: nframes x 27 x 3).
+The result is visualized at 25 fps.
