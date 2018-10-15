@@ -13,14 +13,12 @@ import general_utils as data_utils
 import timeit
 
 
-
 tf.app.flags.DEFINE_string("dataset", "Human", "Articulate object dataset: 'Human' or 'Fish' or 'Mouse'.")
 tf.app.flags.DEFINE_string("datatype", "lie", "Datatype can be 'lie' or 'xyz'.")
 tf.app.flags.DEFINE_string("action", "all", "Action is 'default' for 'Fish' and 'Mouse' and one or all of the following for 'Human'.")
 '''
-h3.6m_action_list = ["directions", "discussion", "eating", "greeting", "phoning",
-          "posing", "purchases", "sitting", "sittingdown", "smoking",
-          "takingphoto", "waiting", "walking", "walkingdog", "walkingtogether"]
+h3.6m_action_list = ['directions', 'discussion', 'eating', 'greeting', 'phoning', 'posing', 'purchases', 'sitting',
+                    'sittingdown', 'smoking', 'takingphoto', 'waiting', 'walking', 'walkingdog', 'walkingtogether']
 'all' includes all of the above
 mouse/fish_action = 'default'
 '''
@@ -245,6 +243,7 @@ def main(_):
                 sio.savemat(output_dir + 'gt_lie_' + action + '_' + str(i) + '.mat', dict([('gt', y_t)]))
 
                 # Forward Kinematics to obtain 3D xyz locations
+                y_p[:,0:6] = y_t[:,0:6]
                 y_p_xyz = data_utils.fk(y_p, config)
                 y_t_xyz = data_utils.fk(y_t, config)
 

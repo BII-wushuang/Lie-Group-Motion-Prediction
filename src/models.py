@@ -180,8 +180,8 @@ class HMRWrapper(RNNCell):
         output = tf.matmul(output, self.w_out) + self.b_out
         output = tf.add(output, inputs)
 
-        if self.config.datatype == 'xyz':
-            output = xyz_resize(output, self.config)
+        #if self.config.datatype == 'xyz':
+            #output = xyz_resize(output, self.config)
 
         return output, new_state
 

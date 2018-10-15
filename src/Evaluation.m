@@ -47,7 +47,7 @@ function [] = processfolder(folder)
             angle_metric = angle_metric./nfiles;
             euler_metric = euler_metric./nfiles;
             
-            filename = [gt_xyz_list.folder '/Errors.csv'];
+            filename = [gt_xyz_list(1).folder '/Errors.csv'];
             fileID = fopen(filename,'w');
             fprintf(fileID,'%s , %s , %s, %s \n', 'Frame #', 'Joint RMSE', 'Mean Angle Error', 'Mean Angle Error (Euler)');
             fclose(fileID);

@@ -3,6 +3,21 @@ import tensorflow as tf
 import scipy.io
 import general_utils as data_utils
 
+
+def read_data(config, training=False):
+    if config.dataset == 'Human':
+        if config.datatype == 'xyz':
+            train_set, test_set, x_test, y_test, dec_in_test, config = read_human(config, training)
+        else:
+            train_set, test_set, x_test, y_test, dec_in_test, config = read_h36m(config, training)
+    elif config.dataset == 'Mouse':
+        train_set, test_set, x_test, y_test, dec_in_test, config = read_mouse(config, training)
+    elif config.dataset == 'Fish':
+        train_set, test_set, x_test, y_test, dec_in_test, config = read_fish(config, training)
+
+    return [train_set, test_set, x_test, y_test, dec_in_test, config]
+
+
 def read_human(config, training):
     if config.datatype == 'lie':
         train_path = './data/Human/Train/train_lie/'
@@ -14,7 +29,7 @@ def read_human(config, training):
         y_test_path = './data/Human/Test/y_test_xyz/'
     if config.filename == 'all':
         actions = ['directions', 'discussion', 'eating', 'greeting', 'phoning', 'posing', 'purchases', 'sitting',
-               'sittingdown', 'smoking', 'photo', 'waiting', 'walking', 'dog', 'together']
+               'sittingdown', 'smoking', 'takingphoto', 'waiting', 'walking', 'walkingdog', 'walkingtogether']
     else:
         actions = [config.filename]
     train_subjects = ['S1', 'S6', 'S7', 'S8', 'S9', 'S11']
@@ -204,7 +219,7 @@ def read_human(config, training):
         y_test_dict[action] = y_test
         dec_in_test_dict[action] = dec_in_test
 
-    config.input_size = 96
+    config.input_size = 81
 
     print("Done reading data.")
 
@@ -224,9 +239,8 @@ def read_h36m(config, training):
         print("Reading {0} data for testing: Input Sequence Length = {1}, Output Sequence Length = {2}.".format(config.dataset, seq_length_in, seq_length_out))
 
     if config.filename == 'all':
-        actions = ["directions", "discussion", "eating", "greeting", "phoning",
-              "posing", "purchases", "sitting", "sittingdown", "smoking",
-              "takingphoto", "waiting", "walking", "walkingdog", "walkingtogether"]
+        actions = ['directions', 'discussion', 'eating', 'greeting', 'phoning', 'posing', 'purchases', 'sitting',
+                   'sittingdown', 'smoking', 'takingphoto', 'waiting', 'walking', 'walkingdog', 'walkingtogether']
     else:
         actions = [config.filename]
 
@@ -261,10 +275,10 @@ def read_h36m(config, training):
 
     print("Done reading data.")
     config.chain_idx = [np.array([0, 1, 2, 3, 4, 5]),
-                  np.array([0, 6, 7, 8, 9, 10]),
-                  np.array([0, 12, 13, 14, 15]),
-                  np.array([13, 17, 18, 19, 22, 19, 21]),
-                  np.array([13, 25, 26, 27, 30, 27, 29])]
+                        np.array([0, 6, 7, 8, 9, 10]),
+                        np.array([0, 12, 13, 14, 15]),
+                        np.array([13, 17, 18, 19, 22, 19, 21]),
+                        np.array([13, 25, 26, 27, 30, 27, 29])]
 
     return [train_set, test_set, x_test, y_test, dec_in_test, config]
 
@@ -456,7 +470,7 @@ def read_general(config, training, train_subjects, test_subjects, train_path, x_
     print("Done reading data.")
 
     config.input_size = x_test.shape[2]
-    
+
     return [train_set, test_set, x_test_dict, y_test_dict, dec_in_test_dict, config]
 
 
@@ -602,7 +616,7 @@ def read_mouse(config, training):
 
 
 def read_mouse2(config, training):
-        
+
     if config.datatype == 'lie':
         train_path = './data/Mouse/Train/train_lie/'
         x_test_path = './data/Mouse/Test/x_test_lie/'
@@ -611,7 +625,7 @@ def read_mouse2(config, training):
         train_path = './data/Mouse/Train/train_xyz/'
         x_test_path = './data/Mouse/Test/x_test_xyz/'
         y_test_path = './data/Mouse/Test/y_test_xyz/'
-    
+
     train_subjects = ['S1', 'S3', 'S4']
     test_subjects = ['S2']
 
@@ -654,7 +668,7 @@ def get_batch_srnn(config, data, action, target_seq_len):
     encoder_inputs  = np.zeros( (batch_size, source_seq_len-1, config.input_size), dtype=float )
     decoder_inputs  = np.zeros( (batch_size, target_seq_len, config.input_size), dtype=float )
     decoder_outputs = np.zeros( (batch_size, target_seq_len, config.input_size), dtype=float )
-    
+
     for i in range( batch_size ):
       _, subsequence, idx = seeds[i]
       idx = idx + 50
@@ -675,7 +689,7 @@ def find_indices_srnn(data, action):
     Obtain the same action indices as in SRNN using a fixed random seed
     See https://github.com/asheshjain399/RNNexp/blob/master/structural_rnn/CRFProblems/H3.6m/processdata.py
     """
-    
+
     SEED = 1234567890
     rng = np.random.RandomState(SEED)
 
@@ -696,21 +710,5 @@ def find_indices_srnn(data, action):
     idx.append(rng.randint(16,T2-prefix-suffix))
     idx.append(rng.randint(16,T1-prefix-suffix))
     idx.append(rng.randint(16,T2-prefix-suffix))
-    
+
     return idx
-
-
-def read_data(config, training=False):
-
-    if config.dataset == 'Human':
-        if config.datatype == 'xyz':
-            train_set, test_set, x_test, y_test, dec_in_test, config = read_human(config, training)
-        else:
-            train_set, test_set, x_test, y_test, dec_in_test, config = read_h36m(config, training)
-    elif config.dataset == 'Mouse':
-        train_set, test_set, x_test, y_test, dec_in_test, config = read_mouse(config, training)
-    elif config.dataset == 'Fish':
-        train_set, test_set, x_test, y_test, dec_in_test, config = read_fish(config, training)
-    
-    return [train_set, test_set, x_test, y_test, dec_in_test, config]
-

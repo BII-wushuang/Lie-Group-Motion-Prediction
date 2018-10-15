@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
+
 class train_Config(object):
 
     """Training Configurations"""
