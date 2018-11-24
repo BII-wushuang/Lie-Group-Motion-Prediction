@@ -86,19 +86,29 @@ def train():
         os.makedirs(checkpoint_dir)
 
     saved_epoch = 0
+    train_size = config.training_size
+    valid_size = config.validation_size
+    best_val_loss = float('inf')
+
     if config.restore & os.path.exists(checkpoint_dir+'checkpoint'):
         with open(checkpoint_dir + 'checkpoint') as f:
             content = f.readlines()
         saved_epoch = int(re.search(r'\d+', content[0]).group())
         model_name = checkpoint_dir + "Epoch_" + str(saved_epoch)
         saver.restore(sess, model_name)
+
+        v_loss_mean = 0.0
+        for i in range(valid_size):
+            batch_x, batch_dec_in, batch_y = data_utils.get_batch(config, test_set)
+            v_loss, valid_summary = sess.run([loss, valid_loss], feed_dict={x: batch_x, y: batch_y, dec_in: batch_dec_in})
+            v_loss_mean = v_loss_mean*i/(i+1) + v_loss/(i+1)
+        best_val_loss = v_loss_mean
+
         print("Restored session from Epoch ", str(saved_epoch))
+        print("Best Validation Loss: ", best_val_loss, "\n")
 
     print("________________________________________________________________")
 
-    train_size = config.training_size
-    valid_size = config.validation_size
-    best_val_loss = float('inf')
     best_val_epoch = saved_epoch
 
     for j in range(saved_epoch, config.max_epoch):
@@ -167,6 +177,9 @@ def predict():
         pred = np.array(pred)
         pred = np.transpose(pred, [1, 0, 2])
         y_predict[act] = pred
+
+        # The following is for zero-velocity baseline
+        # y_predict[act] = np.reshape(np.tile(dec_in_test[act][:,0],dec_in_test[act].shape[1]),dec_in_test[act].shape)
 
     stop = timeit.default_timer()
     print("Test Time: ", stop - start)
@@ -243,7 +256,7 @@ def main(_):
                 sio.savemat(output_dir + 'gt_lie_' + action + '_' + str(i) + '.mat', dict([('gt', y_t)]))
 
                 # Forward Kinematics to obtain 3D xyz locations
-                y_p[:,0:6] = y_t[:,0:6]
+                # y_p[:,0:6] = y_t[:,0:6]
                 y_p_xyz = data_utils.fk(y_p, config)
                 y_t_xyz = data_utils.fk(y_t, config)
 

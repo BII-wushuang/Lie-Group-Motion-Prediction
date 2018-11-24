@@ -2,13 +2,15 @@
 % the mean angle error metric (both axis angle geodesic and euler l2)
 
 function [] = Evaluation()
-    dataset = '/Human';
-    dir_name = ['./output' dataset];
+    dataset = 'Human';
+    dir_name = ['./output/' dataset];
 
     processfolder(dir_name);
 end
 
 function [] = processfolder(folder)
+    actions = {'directions', 'discussion', 'eating', 'greeting', 'phoning', 'posing', 'purchases', 'sitting', 'sittingdown', 'smoking', 'takingphoto', 'waiting', 'walking', 'walkingdog', 'walkingtogether'};
+    out_frames = [1, 3, 7, 9, 13, 15, 17, 24]+1;
     dir_name = dir(folder);
     dir_name = dir_name(3:end);
     for i = 1:length(dir_name)
@@ -20,38 +22,51 @@ function [] = processfolder(folder)
         if (isempty(dir([folder '/*.mat'])))
             processfolder(folder);
         else
-            gt_xyz_list = dir([folder '/gt_xyz*.mat']);
-            gt_lie_list = dir([folder '/gt_lie*.mat']);
-            pred_xyz_list = dir([folder '/prediction_xyz*.mat']);
-            pred_lie_list = dir([folder '/prediction_lie*.mat']);
-            
-            gt_xyz = importdata([gt_xyz_list(1).folder '/' gt_xyz_list(1).name]);
-            nframes = size(gt_xyz, 1);
-            frames = (1:nframes)';
-            l2_metric = zeros([nframes,1]);
-            angle_metric = zeros([nframes,1]);
-            euler_metric = zeros([nframes,1]);
-            nfiles = length(gt_xyz_list);
-            
-            for j = 1:nfiles
-                gt_xyz = importdata([gt_xyz_list(j).folder '/' gt_xyz_list(j).name]);
-                gt_lie = importdata([gt_lie_list(j).folder '/' gt_lie_list(j).name]);
-                pred_xyz = importdata([pred_xyz_list(j).folder '/' pred_xyz_list(j).name]);
-                pred_lie = importdata([pred_lie_list(j).folder '/' pred_lie_list(j).name]);
-                
-                l2_metric = l2_metric + l2(gt_xyz,pred_xyz);
-                angle_metric = angle_metric + angle(gt_lie,pred_lie);
-                euler_metric = euler_metric + euler(gt_lie,pred_lie);
+            idx = strfind(folder, '/');
+            folder_name = folder(idx(end-2)+1:idx(end-1)-1);
+            fprintf('%s \n', folder_name);
+            filename = [folder '/Errors.csv'];
+            all_errors = fopen([folder '/Errors.csv'], 'w');
+            fprintf('\n');
+            for k = 1:length(actions)
+                gt_xyz_list = dir([folder '/gt_xyz_' actions{k} '_*.mat']);
+                gt_lie_list = dir([folder '/gt_lie_' actions{k} '_*.mat']);
+                pred_xyz_list = dir([folder '/prediction_xyz_' actions{k} '_*.mat']);
+                pred_lie_list = dir([folder '/prediction_lie_' actions{k} '_*.mat']);
+                if isempty(gt_xyz_list)
+                    continue
+                end
+
+                gt_xyz = importdata([gt_xyz_list(1).folder '/' gt_xyz_list(1).name]);
+                nframes = size(gt_xyz, 1);
+                frames = (1:nframes)';
+                l2_metric = zeros([nframes,1]);
+                angle_metric = zeros([nframes,1]);
+                euler_metric = zeros([nframes,1]);
+                nfiles = length(gt_xyz_list);
+
+                for j = 1:nfiles
+                    gt_xyz = importdata([gt_xyz_list(j).folder '/' gt_xyz_list(j).name]);
+                    gt_lie = importdata([gt_lie_list(j).folder '/' gt_lie_list(j).name]);
+                    pred_xyz = importdata([pred_xyz_list(j).folder '/' pred_xyz_list(j).name]);
+                    pred_lie = importdata([pred_lie_list(j).folder '/' pred_lie_list(j).name]);
+
+                    l2_metric = l2_metric + l2(gt_xyz,pred_xyz);
+                    angle_metric = angle_metric + angle(gt_lie,pred_lie);
+                    euler_metric = euler_metric + euler(gt_lie,pred_lie);
+                end
+                l2_metric = l2_metric./nfiles;
+                angle_metric = angle_metric./nfiles;
+                euler_metric = euler_metric./nfiles;
+
+                filename = [gt_xyz_list(1).folder '/Errors_' actions{k} '.csv'];
+                fileID = fopen(filename,'w');
+                fprintf(fileID,'%s , %s , %s, %s \n', 'Frame #', 'Mean Joint Error', 'Mean Angle Error', 'Mean Angle Error (Euler)');
+                fclose(fileID);
+                dlmwrite(filename, [frames, l2_metric, angle_metric, euler_metric], '-append');
+
             end
-            l2_metric = l2_metric./nfiles;
-            angle_metric = angle_metric./nfiles;
-            euler_metric = euler_metric./nfiles;
-            
-            filename = [gt_xyz_list(1).folder '/Errors.csv'];
-            fileID = fopen(filename,'w');
-            fprintf(fileID,'%s , %s , %s, %s \n', 'Frame #', 'Joint RMSE', 'Mean Angle Error', 'Mean Angle Error (Euler)');
-            fclose(fileID);
-            dlmwrite(filename, [frames, l2_metric, angle_metric, euler_metric], '-append');
+            fclose(all_errors);
         end
     end
 

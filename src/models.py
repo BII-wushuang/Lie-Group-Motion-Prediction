@@ -180,27 +180,19 @@ class HMRWrapper(RNNCell):
         output = tf.matmul(output, self.w_out) + self.b_out
         output = tf.add(output, inputs)
 
-        #if self.config.datatype == 'xyz':
-            #output = xyz_resize(output, self.config)
+        if self.config.datatype == 'xyz':
+            output = xyz_resize(output, self.config)
 
         return output, new_state
 
 
 def get_hidden_states_before(hidden_states, step, padding):
-    #padding zeros
-    #padding=tf.zeros((shape[0], step, hidden_size), dtype=tf.float32)
-    #remove last steps
     displaced_hidden_states=hidden_states[:,:-step,:]
-    #concat padding
     return tf.concat([padding, displaced_hidden_states], axis=1)
 
 
 def get_hidden_states_after(hidden_states, step, padding):
-    #padding zeros
-    #padding=tf.zeros((shape[0], step, hidden_size), dtype=tf.float32)
-    #remove last steps
     displaced_hidden_states=hidden_states[:,step:,:]
-    #concat padding
     return tf.concat([displaced_hidden_states, padding], axis=1)
 
 
@@ -375,7 +367,7 @@ def hmr_cell(h, c_h, config):
     return final_hidden_states, final_cell_states, final_global_states
 
 def xyz_resize(prediction, config):
-    nframes = prediction.get_shape().as_list()[0]
+    nframes = config.batch_size
     prediction = tf.reshape(prediction,[nframes,-1,3])
     njoints = prediction.get_shape().as_list()[1]
     xyz_resize = []
