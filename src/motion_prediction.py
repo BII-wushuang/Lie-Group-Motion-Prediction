@@ -13,7 +13,7 @@ import general_utils as data_utils
 import timeit
 
 
-tf.app.flags.DEFINE_string("dataset", "Human", "Articulate object dataset: 'Human' or 'Fish' or 'Mouse'.")
+tf.app.flags.DEFINE_string("dataset", "Fish", "Articulate object dataset: 'Human' or 'Fish' or 'Mouse'.")
 tf.app.flags.DEFINE_string("datatype", "lie", "Datatype can be 'lie' or 'xyz'.")
 tf.app.flags.DEFINE_string("action", "all", "Action is 'default' for 'Fish' and 'Mouse' and one or all of the following for 'Human'.")
 '''

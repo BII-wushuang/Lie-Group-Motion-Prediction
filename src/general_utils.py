@@ -43,7 +43,7 @@ def findrot(u, v):
     if w_norm < 1e-6:
         A = np.zeros(3)
     else:
-        A = w/w_norm*np.arccos(np.dot(u, v))
+        A = w / w_norm * np.arccos(np.dot(u, v))
 
     return A
 
@@ -54,7 +54,7 @@ def computelie(lie_params):
 
     for j in range(njoints):
         if j == 0:
-            A[j, :, :] = lietomatrix(lie_params[j, 0: 3].T, lie_params[j, 3:6].T)
+            A[j, :, :] = lietomatrix(lie_params[j, 0:3].T, lie_params[j, 3:6].T)
         else:
             A[j, :, :] = np.matmul(np.squeeze(A[j - 1, :, :]),
                                    lietomatrix(lie_params[j, 0:3].T, lie_params[j, 3:6].T))
@@ -74,15 +74,15 @@ def rotmat2euler(R):
         E3 = 0
         dlta = np.arctan2(R[0, 1], R[0, 2])
         if R[0, 2] == -1:
-            E2 = np.pi/2
+            E2 = np.pi / 2
             E1 = E3 + dlta
         else:
-            E2 = -np.pi/2
+            E2 = -np.pi / 2
             E1 = -E3 + dlta
     else:
         E2 = -np.arcsin(R[0, 2])
-        E1 = np.arctan2(R[1, 2]/np.cos(E2), R[2, 2]/np.cos(E2))
-        E3 = np.arctan2(R[0, 1]/np.cos(E2), R[0, 0]/np.cos(E2))
+        E1 = np.arctan2(R[1, 2] / np.cos(E2), R[2, 2] / np.cos(E2))
+        E3 = np.arctan2(R[0, 1] / np.cos(E2), R[0, 0] / np.cos(E2))
 
     eul = np.array([E1, E2, E3])
 
@@ -125,74 +125,30 @@ def eulertomatrix(angle, trans):
     return SEmatrix
 
 
-def computelie_euler(lie_params):
-    njoints = np.shape(lie_params)[0]
-    A = np.zeros((njoints, 4, 4))
-
-    for j in range(njoints):
-        if j == 0:
-            A[j, :, :] = eulertomatrix(lie_params[j, 0: 3].T, lie_params[j, 3:6].T)
-        else:
-            A[j, :, :] = np.matmul(np.squeeze(A[j - 1, :, :]),
-                                   eulertomatrix(lie_params[j, 0:3].T, lie_params[j, 3:6].T))
-
-    joint_xyz = np.zeros((njoints, 3))
-
-    for j in range(njoints):
-        coor = np.array([0, 0, 0, 1]).reshape((4, 1))
-        xyz = np.matmul(np.squeeze(A[j, :, :]), coor)
-        joint_xyz[j, :] = xyz[0:3, 0]
-
-    return joint_xyz
-
-
 def forward_kinematics(data, config):
-
     bone = config.bone
 
-    chain_idx = config.chain_idx
-    skip = config.skip
     nframes = data.shape[0]
     data = data.reshape([nframes, -1, 3])
 
-    omega_idx = []
-    for i in range(len(chain_idx)):
-        for j in range(chain_idx[i].shape[0]):
-            if j < chain_idx[i].shape[0]-1:
-                omega_idx.append(chain_idx[i][j]-i)
-            else:
-                omega_idx.append(-1)
-
-    njoints = len(omega_idx)
+    njoints = data.shape[1] + 1
 
     lie_params = np.zeros([nframes, njoints, 6])
 
-    for i in range(njoints):
-        if omega_idx[i] == -1:
-            continue
-        else:
-            lie_params[:, i, 0:3] = data[:, omega_idx[i], :]
+    for i in range(njoints - 1):
+        lie_params[:, i, 0:3] = data[:, i, :]
+
     lie_params[:, :, 3:6] = bone
     lie_params[:, 0, 3:6] = np.zeros([3])
-
 
     joint_xyz_f = np.zeros([nframes, njoints, 3])
 
     for i in range(nframes):
-        for j in range(np.min([len(skip)-1,3])):
-            joint_xyz_f[i, np.arange(skip[j], skip[j + 1]), :] = computelie(
-                np.squeeze(lie_params[i, np.arange(skip[j], skip[j + 1]), :]))
-        if len(skip) >5:
-            lie_params[i, 17, 3:6] = joint_xyz_f[i, 14, :]
-            lie_params[i, 22, 3:6] = joint_xyz_f[i, 14, :]
-        for j in range(3, len(skip)-1):
-            joint_xyz_f[i, np.arange(skip[j], skip[j + 1]), :] = computelie(
-                np.squeeze(lie_params[i, np.arange(skip[j], skip[j + 1]), :]))
+        joint_xyz_f[i, :, :] = computelie(np.squeeze(lie_params[i, :, :]))
     return joint_xyz_f
 
 
 def inverse_kinematics(data, config):
-    index = config.chain_idx
     nframes = data.shape[0]
     joint_xyz = data.reshape([nframes, -1, 3])
     njoints = joint_xyz.shape[1]
@@ -200,71 +156,57 @@ def inverse_kinematics(data, config):
     lie_parameters = np.zeros((nframes, njoints, 6))
 
     for i in range(nframes):
-        for k in range(len(index)):
+        lie_parameters[i, 0, 3:6] = joint_xyz[i, 0, :]
 
-            lie_parameters[i, index[k][0], 3:6] = joint_xyz[i, index[k][0], :]
+        for j in range(njoints - 1):
+            lie_parameters[i, j + 1, 3] = np.linalg.norm(
+                joint_xyz[i, j + 1, :] - joint_xyz[i, j, :])
 
-            for j in range(len(index[k])-1):
-                lie_parameters[i, index[k][j+1], 3] = np.linalg.norm(joint_xyz[i, index[k][j+1], :] - joint_xyz[i, index[k][j], :])
+        for j in range(njoints - 2, -1, -1):
+            v = np.squeeze(joint_xyz[i, j + 1, :] - joint_xyz[i, j, :])
+            vhat = v / np.linalg.norm(v)
 
-            for j in range(len(index[k])-2, -1, -1):
-                v = np.squeeze(joint_xyz[i, index[k][j+1], :] - joint_xyz[i, index[k][j], :])
-                vhat = v/np.linalg.norm(v)
-
-                if j == 0:
-                    uhat = np.array([1, 0, 0])
-                else:
-                    u = np.squeeze(joint_xyz[i, index[k][j], :] - joint_xyz[i, index[k][j-1], :])
-                    uhat = u/np.linalg.norm(u)
-                A = expmap2rotmat(findrot(np.array([1, 0, 0]), np.squeeze(uhat))).T
-                B = expmap2rotmat(findrot(np.array([1, 0, 0]), np.squeeze(vhat)))
-                lie_parameters[i, index[k][j], 0:3] = np.squeeze(rotmat2expmap(np.matmul(A, B)))
+            if j == 0:
+                uhat = np.array([1, 0, 0])
+            else:
+                u = np.squeeze(joint_xyz[i, j, :] - joint_xyz[i, j - 1, :])
+                uhat = u / np.linalg.norm(u)
+            A = expmap2rotmat(findrot(np.array([1, 0, 0]), np.squeeze(uhat))).T
+            B = expmap2rotmat(findrot(np.array([1, 0, 0]), np.squeeze(vhat)))
+            lie_parameters[i, j, 0:3] = np.squeeze(rotmat2expmap(np.matmul(A, B)))
 
     return lie_parameters
 
 
-def forward_kinematics_euler(data, config):
-    bone = config.bone
-    chain_idx = config.chain_idx
-    skip = config.skip
-    nframes = data.shape[0]
-    data = data.reshape([nframes, -1, 3])
+def normalize_data(data, data_mean, data_std, dim_to_use):
+    """
+    Copied from https://github.com/una-dinosauria/human-motion-prediction
+    """
+    data_out = {}
 
-    omega_idx = []
-    for i in range(len(chain_idx)):
-        for j in range(chain_idx[i].shape[0]):
-            if j < chain_idx[i].shape[0]-1:
-                omega_idx.append(chain_idx[i][j]-i)
-            else:
-                omega_idx.append(-1)
+    for key in data.keys():
+        data_out[key] = np.divide((data[key] - data_mean), data_std)
+        data_out[key] = data_out[key][:, dim_to_use]
 
-    njoints = len(omega_idx)
+    return data_out
 
-    lie_params = np.zeros([nframes, njoints, 6])
 
-    for i in range(njoints):
-        if omega_idx[i] == -1:
-            continue
-        else:
-            lie_params[:, i, 0:3] = data[:, omega_idx[i], :]
-    lie_params[:, :, 3:6] = bone
-    lie_params[:, 0, 3:6] = np.zeros([3])
-    lie_params[:, 6, 3:6] = np.zeros([3])
-    lie_params[:, 12, 3:6] = np.zeros([3])
+def normalization_stats(completeData):
+    """
+    Copied from https://github.com/una-dinosauria/human-motion-prediction
+    """
+    data_mean = np.mean(completeData, axis=0)
+    data_std = np.std(completeData, axis=0)
 
-    joint_xyz_f = np.zeros([nframes, njoints, 3])
+    dimensions_to_ignore = []
+    dimensions_to_use = []
 
-    for i in range(nframes):
-        for j in range(np.min([len(skip)-1,3])):
-            joint_xyz_f[i, np.arange(skip[j], skip[j + 1]), :] = computelie_euler(
-                np.squeeze(lie_params[i, np.arange(skip[j], skip[j + 1]), :]))
-        if len(skip) >5:
-            lie_params[i, 17, 3:6] = joint_xyz_f[i, 14, :]
-            lie_params[i, 22, 3:6] = joint_xyz_f[i, 14, :]
-        for j in range(3, len(skip)-1):
-            joint_xyz_f[i, np.arange(skip[j], skip[j + 1]), :] = computelie_euler(
-                np.squeeze(lie_params[i, np.arange(skip[j], skip[j + 1]), :]))
-    return joint_xyz_f
+    dimensions_to_ignore.extend(list(np.where(data_std < 1e-4)[0]))
+    dimensions_to_use.extend(list(np.where(data_std >= 1e-4)[0]))
+
+    data_std[dimensions_to_ignore] = 1.0
+
+    return [data_mean, data_std, dimensions_to_ignore, dimensions_to_use]
 
 
 def unNormalizeData(normalizedData, data_mean, data_std, dimensions_to_ignore):
@@ -293,77 +235,6 @@ def unNormalizeData(normalizedData, data_mean, data_std, dimensions_to_ignore):
     return origData
 
 
-def readCSVasFloat(filename):
-    """
-    Copied from https://github.com/una-dinosauria/human-motion-prediction
-    """
-    returnArray = []
-    lines = open(filename).readlines()
-    for line in lines:
-        line = line.strip().split(',')
-        if len(line) > 0:
-            returnArray.append(np.array([np.float32(x) for x in line]))
-    returnArray = np.array(returnArray)
-    return returnArray
-
-
-def load_data(path_to_dataset, subjects, actions):
-    """
-    Copied from https://github.com/una-dinosauria/human-motion-prediction
-    """
-    trainData = {}
-    completeData = []
-    for subj in subjects:
-        for action in actions:
-            for subact in [1, 2]:  # subactions
-                # print("Reading subject {0}, action {1}, subaction {2}".format(subj, action, subact))
-                filename = '{0}/S{1}/{2}_{3}.txt'.format(path_to_dataset, subj, action, subact)
-                action_sequence = readCSVasFloat(filename)
-
-                n, d = action_sequence.shape
-                even_list = range(0, n, 2)
-
-                trainData[(subj, action, subact, 'even')] = action_sequence[even_list, :]
-
-            if len(completeData) == 0:
-                completeData = copy.deepcopy(action_sequence)
-            else:
-                completeData = np.append(completeData, action_sequence, axis=0)
-
-    return [trainData, completeData]
-
-
-def normalize_data( data, data_mean, data_std, dim_to_use):
-    """
-    Copied from https://github.com/una-dinosauria/human-motion-prediction
-    """
-    data_out = {}
-
-    for key in data.keys():
-        data_out[key] = np.divide((data[key] - data_mean), data_std)
-        data_out[key] = data_out[key][:, dim_to_use]
-
-    return data_out
-
-
-def normalization_stats(completeData):
-    """
-    Copied from https://github.com/una-dinosauria/human-motion-prediction
-    """
-    data_mean = np.mean(completeData, axis=0)
-    data_std  =  np.std(completeData, axis=0)
-
-    dimensions_to_ignore = []
-    dimensions_to_use    = []
-
-    dimensions_to_ignore.extend( list(np.where(data_std < 1e-4)[0]) )
-    dimensions_to_use.extend( list(np.where(data_std >= 1e-4)[0]) )
-
-    data_std[dimensions_to_ignore] = 1.0
-
-    return [data_mean, data_std, dimensions_to_ignore, dimensions_to_use]
-
-
 class Progbar(object):
     """Progbar class copied from https://github.com/fchollet/keras/
 
@@ -373,6 +244,7 @@ class Progbar(object):
         target: Total number of steps expected.
         interval: Minimum visual progress update interval (in seconds).
     """
+
     def __init__(self, target, width=30, verbose=1):
         self.width = width
         self.target = target
@@ -423,15 +295,15 @@ class Progbar(object):
             numdigits = int(np.floor(np.log10(self.target))) + 1
             barstr = '%%%dd/%%%dd [' % (numdigits, numdigits)
             bar = barstr % (current, self.target)
-            prog = float(current)/self.target
-            prog_width = int(self.width*prog)
+            prog = float(current) / self.target
+            prog_width = int(self.width * prog)
             if prog_width > 0:
-                bar += ('='*(prog_width-1))
+                bar += ('=' * (prog_width - 1))
                 if current < self.target:
                     bar += '>'
                 else:
                     bar += '='
-            bar += ('.'*(self.width-prog_width))
+            bar += ('.' * (self.width - prog_width))
             bar += ']'
             sys.stdout.write(bar)
             self.total_width = len(bar)
@@ -440,7 +312,7 @@ class Progbar(object):
                 time_per_unit = (now - self.start) / current
             else:
                 time_per_unit = 0
-            eta = time_per_unit*(self.target - current)
+            eta = time_per_unit * (self.target - current)
             info = ''
             if current < self.target:
                 info += ' - ETA: %ds' % eta
@@ -449,13 +321,13 @@ class Progbar(object):
             for k in self.unique_values:
                 if type(self.sum_values[k]) is list:
                     info += ' - %s: %.4f' % (k,
-                        self.sum_values[k][0] / max(1, self.sum_values[k][1]))
+                                             self.sum_values[k][0] / max(1, self.sum_values[k][1]))
                 else:
                     info += ' - %s: %s' % (k, self.sum_values[k])
 
             self.total_width += len(info)
             if prev_total_width > self.total_width:
-                info += ((prev_total_width-self.total_width) * " ")
+                info += ((prev_total_width - self.total_width) * " ")
 
             sys.stdout.write(info)
             sys.stdout.flush()
@@ -468,11 +340,11 @@ class Progbar(object):
                 info = '%ds' % (now - self.start)
                 for k in self.unique_values:
                     info += ' - %s: %.4f' % (k,
-                        self.sum_values[k][0] / max(1, self.sum_values[k][1]))
+                                             self.sum_values[k][0] / max(1, self.sum_values[k][1]))
                 sys.stdout.write(info + "\n")
 
     def add(self, n, values=[]):
-        self.update(self.seen_so_far+n, values)
+        self.update(self.seen_so_far + n, values)
 
 
 def get_batch(config, data):
@@ -502,7 +374,9 @@ def get_batch(config, data):
 
         # Organize into batch_size x window_size x input_size
         encoder_inputs[i, :, 0:config.input_size] = data_sel[0:config.input_window_size - 1, :]  # x_train
-        decoder_inputs[i, :, 0:config.input_size] = data_sel[config.input_window_size - 1:config.input_window_size + config.output_window_size - 1, :]  # decoder_in_train
+        decoder_inputs[i, :, 0:config.input_size] = data_sel[
+                                                    config.input_window_size - 1:config.input_window_size + config.output_window_size - 1,
+                                                    :]  # decoder_in_train
         decoder_outputs[i, :, 0:config.input_size] = data_sel[config.input_window_size:, 0:config.input_size]  # y_train
 
     return encoder_inputs, decoder_inputs, decoder_outputs
@@ -513,10 +387,12 @@ def create_directory(config):
 
     folder_dir = config.dataset + '/' + config.datatype + '_' + config.loss + '_' + config.model
     if config.model == 'HMR':
-        folder_dir += '_RecurrentSteps=' + str(config.recurrent_steps) + '_' + 'ContextWindow=' + str(config.context_window) + '_' + 'hiddenSize=' + str(config.hidden_size)
+        folder_dir += '_RecurrentSteps=' + str(config.recurrent_steps) + '_' + 'ContextWindow=' + str(
+            config.context_window) + '_' + 'hiddenSize=' + str(config.hidden_size)
 
     folder_dir += '/' + config.filename + '/'
-    folder_dir += 'inputWindow=' + str(config.input_window_size) + '_outputWindow=' + str(config.output_window_size) + '/'
+    folder_dir += 'inputWindow=' + str(config.input_window_size) + '_outputWindow=' + str(
+        config.output_window_size) + '/'
 
     checkpoint_dir = './checkpoint/' + folder_dir
     output_dir = './output/' + folder_dir
@@ -533,16 +409,16 @@ def revert_coordinate_space(channels, R0, T0):
     channels_rec = copy.copy(channels)
     R_prev = R0
     T_prev = T0
-    rootRotInd = np.arange(3,6)
+    rootRotInd = np.arange(3, 6)
 
     # Loop through the passed posses
     for ii in range(n):
         R_diff = expmap2rotmat(channels[ii, rootRotInd])
         R = R_diff.dot(R_prev)
 
-        channels_rec[ii, rootRotInd] = np.reshape(rotmat2expmap(R),3)
-        T = T_prev + ((R_prev.T).dot( np.reshape(channels[ii,:3],[3,1]))).reshape(-1)
-        channels_rec[ii,:3] = T
+        channels_rec[ii, rootRotInd] = np.reshape(rotmat2expmap(R), 3)
+        T = T_prev + ((R_prev.T).dot(np.reshape(channels[ii, :3], [3, 1]))).reshape(-1)
+        channels_rec[ii, :3] = T
         T_prev = T
         R_prev = R
 
@@ -551,56 +427,43 @@ def revert_coordinate_space(channels, R0, T0):
 
 def forward_kinematics_h36m(angles):
     """
-    Copied from https://github.com/una-dinosauria/human-motion-prediction
+    Modified from https://github.com/una-dinosauria/human-motion-prediction
     """
     parent = np.array([0, 1, 2, 3, 4, 5, 1, 7, 8, 9, 10, 1, 12, 13, 14, 15, 13,
                        17, 18, 19, 20, 21, 20, 23, 13, 25, 26, 27, 28, 29, 28, 31]) - 1
 
-    offset = np.array(
-        [0.000000, 0.000000, 0.000000, -132.948591, 0.000000, 0.000000, 0.000000, -442.894612, 0.000000, 0.000000,
-         -454.206447, 0.000000, 0.000000, 0.000000, 162.767078, 0.000000, 0.000000, 74.999437, 132.948826, 0.000000,
-         0.000000, 0.000000, -442.894413, 0.000000, 0.000000, -454.206590, 0.000000, 0.000000, 0.000000, 162.767426,
-         0.000000, 0.000000, 74.999948, 0.000000, 0.100000, 0.000000, 0.000000, 233.383263, 0.000000, 0.000000,
-         257.077681, 0.000000, 0.000000, 121.134938, 0.000000, 0.000000, 115.002227, 0.000000, 0.000000, 257.077681,
-         0.000000, 0.000000, 151.034226, 0.000000, 0.000000, 278.882773, 0.000000, 0.000000, 251.733451, 0.000000,
-         0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 99.999627, 0.000000, 100.000188, 0.000000, 0.000000,
-         0.000000, 0.000000, 0.000000, 257.077681, 0.000000, 0.000000, 151.031437, 0.000000, 0.000000, 278.892924,
-         0.000000, 0.000000, 251.728680, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 99.999888,
-         0.000000, 137.499922, 0.000000, 0.000000, 0.000000, 0.000000])
-    offset = offset.reshape(-1, 3)
-
-    rotInd = [[5, 6, 4],
-              [8, 9, 7],
-              [11, 12, 10],
-              [14, 15, 13],
-              [17, 18, 16],
-              [],
-              [20, 21, 19],
-              [23, 24, 22],
-              [26, 27, 25],
-              [29, 30, 28],
-              [],
-              [32, 33, 31],
-              [35, 36, 34],
-              [38, 39, 37],
-              [41, 42, 40],
-              [],
-              [44, 45, 43],
-              [47, 48, 46],
-              [50, 51, 49],
-              [53, 54, 52],
-              [56, 57, 55],
-              [],
-              [59, 60, 58],
-              [],
-              [62, 63, 61],
-              [65, 66, 64],
-              [68, 69, 67],
-              [71, 72, 70],
-              [74, 75, 73],
-              [],
-              [77, 78, 76],
-              []]
+    offset = np.array([[0., 0., 0.],
+                       [-132.95, 0., 0.],
+                       [0., -442.89, 0.],
+                       [0., -454.21, 0.],
+                       [0., 0., 162.77],
+                       [0., 0., 75.],
+                       [132.95, 0., 0.],
+                       [0., -442.89, 0.],
+                       [0., -454.21, 0.],
+                       [0., 0., 162.77],
+                       [0., 0., 75.],
+                       [0., 0., 0.],
+                       [0., 233.38, 0.],
+                       [0., 257.08, 0.],
+                       [0., 121.13, 0.],
+                       [0., 115., 0.],
+                       [0., 257.08, 0.],
+                       [0., 151.03, 0.],
+                       [0., 278.88, 0.],
+                       [0., 251.73, 0.],
+                       [0., 0., 0.],
+                       [0., 0., 100.],
+                       [0., 137.5, 0.],
+                       [0., 0., 0.],
+                       [0., 257.08, 0.],
+                       [0., 151.03, 0.],
+                       [0., 278.88, 0.],
+                       [0., 251.73, 0.],
+                       [0., 0., 0.],
+                       [0., 0., 100.],
+                       [0., 137.5, 0.],
+                       [0., 0., 0.]])
 
     expmapInd = np.split(np.arange(4, 100) - 1, 32)
 
@@ -609,25 +472,14 @@ def forward_kinematics_h36m(angles):
     xyzStruct = [dict() for x in range(njoints)]
 
     for i in np.arange(njoints):
-
-        if not rotInd[i]:  # If the list is empty
-            xangle, yangle, zangle = 0, 0, 0
-        else:
-            xangle = angles[rotInd[i][0] - 1]
-            yangle = angles[rotInd[i][1] - 1]
-            zangle = angles[rotInd[i][2] - 1]
-
-        r = angles[expmapInd[i]]
-
-        thisRotation = expmap2rotmat(r)
-        thisPosition = np.array([xangle, yangle, zangle])
+        thisRotation = expmap2rotmat(angles[expmapInd[i]])
 
         if parent[i] == -1:  # Root node
             xyzStruct[i]['rotation'] = thisRotation
-            xyzStruct[i]['xyz'] = np.reshape(offset[i, :], (1, 3)) + thisPosition
+            # xyzStruct[i]['rotation'] = np.eye(3)
+            xyzStruct[i]['xyz'] = np.reshape(offset[i, :], (1, 3))
         else:
-            xyzStruct[i]['xyz'] = (offset[i, :] + thisPosition).dot(xyzStruct[parent[i]]['rotation']) + \
-                                  xyzStruct[parent[i]]['xyz']
+            xyzStruct[i]['xyz'] = (offset[i, :]).dot(xyzStruct[parent[i]]['rotation']) + xyzStruct[parent[i]]['xyz']
             xyzStruct[i]['rotation'] = thisRotation.dot(xyzStruct[parent[i]]['rotation'])
 
     xyz = [xyzStruct[i]['xyz'] for i in range(njoints)]
@@ -662,7 +514,7 @@ def mean_euler_error(config, action, y_predict, y_test):
             else:
                 pred = copy.deepcopy(y_predict[i])
                 gt = copy.deepcopy(y_test[i])
-            for k in np.arange(3, pred.shape[1]-2, 3):
+            for k in np.arange(3, pred.shape[1] - 2, 3):
                 pred[j, k:k + 3] = rotmat2euler(expmap2rotmat(pred[j, k:k + 3]))
                 gt[j, k:k + 3] = rotmat2euler(expmap2rotmat(gt[j, k:k + 3]))
         pred[:, 0:6] = 0

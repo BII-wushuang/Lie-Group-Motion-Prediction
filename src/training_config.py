@@ -37,30 +37,13 @@ class train_Config(object):
         """Define kinematic chain configurations based on dataset class"""
         if self.dataset == 'Fish':
             self.filename = 'default'
-            self.chain_config = np.array([21])
+            self.chain_config = [np.arange(0, 21)]
         elif self.dataset == 'Mouse':
             self.filename = 'default'
-            self.chain_config = np.array([5])
-        else: # Human
-            self.chain_config = np.array([6, 6, 5, 5, 5])
-
-        """Setting kinematic chains configurations, do not modify the code below"""
-        self.nchains = self.chain_config.shape[0]
-        self.skip = np.zeros([self.nchains])
-
-        for i in range(self.nchains):
-            if i == 0:
-                self.skip[i] = self.chain_config[i]
-            else:
-                self.skip[i] = self.skip[i - 1] + self.chain_config[i]
-
-        self.skip = np.concatenate((np.array([0]), self.skip))
-        self.skip = self.skip.astype(int)
-
-        self.chain_idx = []
-        for j in range(self.skip.shape[0] - 1):
-            self.chain_idx.append(np.arange(self.skip[j], self.skip[j + 1]))
-
-        self.idx = [0]
-        for j in range(len(self.chain_idx)):
-            self.idx.append(self.chain_idx[j][-1] - j)
+            self.chain_config = [np.arange(0, 5)]
+        elif self.dataset == 'Human':
+            self.chain_config = [np.array([0, 1, 2, 3, 4, 5]),
+                                 np.array([0, 6, 7, 8, 9, 10]),
+                                 np.array([0, 12, 13, 14, 15]),
+                                 np.array([13, 17, 18, 19, 22, 19, 21]),
+                                 np.array([13, 25, 26, 27, 30, 27, 29])]
