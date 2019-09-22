@@ -13,7 +13,7 @@ import general_utils as data_utils
 import timeit
 
 
-tf.app.flags.DEFINE_string("dataset", "Fish", "Articulate object dataset: 'Human' or 'Fish' or 'Mouse'.")
+tf.app.flags.DEFINE_string("dataset", "Human", "Articulate object dataset: 'Human' or 'Fish' or 'Mouse'.")
 tf.app.flags.DEFINE_string("datatype", "lie", "Datatype can be 'lie' or 'xyz'.")
 tf.app.flags.DEFINE_string("action", "all", "Action is 'default' for 'Fish' and 'Mouse' and one or all of the following for 'Human'.")
 '''
@@ -40,19 +40,24 @@ def train():
     labels = tf.reshape(labels, [-1, config.input_size])
     labels = tf.split(labels, config.output_window_size, axis=0, name='labels')
 
-    tf.set_random_seed(112858)
-
     # Define model
     prediction = models.seq2seq(x, dec_in, config, True)
 
-    sess = tf.Session()
+    sess_config = tf.ConfigProto()
+    sess_config.gpu_options.allow_growth = True
+    sess_config.gpu_options.per_process_gpu_memory_fraction = 0.6
+    sess_config.allow_soft_placement = True
+    sess_config.log_device_placement = False
+    sess = tf.Session(config=sess_config)
+
+    tf.set_random_seed(112858)
 
     # Define cost function
     loss = eval('loss_functions.' + config.loss + '_loss(prediction, labels, config)')
 
     # Add a summary for the loss
-    train_loss = tf.summary.scalar('train loss', loss)
-    valid_loss = tf.summary.scalar('valid loss', loss)
+    train_loss = tf.summary.scalar('train_loss', loss)
+    valid_loss = tf.summary.scalar('valid_loss', loss)
 
     # Defining training parameters
     optimizer = tf.train.AdamOptimizer(config.learning_rate)
@@ -65,7 +70,7 @@ def train():
     optimizer.apply_gradients(zip(grads, tf.trainable_variables()))
     train_op = optimizer.minimize(loss, global_step=global_step)
 
-    saver = tf.train.Saver(max_to_keep=5)
+    saver = tf.train.Saver(max_to_keep=10)
     train_writer = tf.summary.FileWriter("./log", sess.graph)
 
     sess.run(tf.local_variables_initializer())
@@ -153,12 +158,15 @@ def predict():
     x = tf.placeholder(dtype=tf.float32, shape=[None, config.input_window_size - 1, config.input_size], name="input_sequence")
     dec_in = tf.placeholder(dtype=tf.float32, shape=[None, config.test_output_window, config.input_size], name="decoder_input")
 
-    tf.set_random_seed(112858)
-
     # Define model
     prediction = models.seq2seq(x, dec_in, config, False)
 
-    sess = tf.Session()
+    sess_config = tf.ConfigProto()
+    sess_config.gpu_options.allow_growth = True
+    sess_config.gpu_options.per_process_gpu_memory_fraction = 0.6
+    sess_config.allow_soft_placement = True
+    sess_config.log_device_placement = False
+    sess = tf.Session(config=sess_config)
 
     # Restore latest model
     with open(checkpoint_dir + 'checkpoint') as f:
@@ -188,6 +196,8 @@ def predict():
 
 
 def main(_):
+
+    tf.set_random_seed(112858)
 
     global config, actions, checkpoint_dir, output_dir, train_set, test_set, x_test, y_test, dec_in_test
 

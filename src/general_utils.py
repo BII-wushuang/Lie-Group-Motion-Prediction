@@ -529,9 +529,9 @@ def mean_euler_error(config, action, y_predict, y_test):
 
     mme = np.mean(mean_errors, 0)
 
-    print("\n" + action)
     toprint_idx = np.array([1, 3, 7, 9, 13, 15, 17, 24])
     idx = np.where(toprint_idx < len(mme))[0]
+    print("\n" + action)
     toprint_list = ["& {:.2f} ".format(mme[toprint_idx[i]]) for i in idx]
     print("".join(toprint_list))
 

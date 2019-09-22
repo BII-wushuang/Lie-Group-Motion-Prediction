@@ -123,6 +123,34 @@ def read_human(config, training):
         train_set = data_utils.normalize_data(train_set, data_mean, data_std, dim_to_use)
         test_set = data_utils.normalize_data(test_set, data_mean, data_std, dim_to_use)
 
+
+        expmapInd = np.split(np.arange(4, 100) - 1, 32)
+
+        weights = np.zeros([len(config.dim_to_use)])
+        for j in range(len(config.dim_to_use)):
+            for i in range(len(expmapInd)):
+                if config.dim_to_use[j] in expmapInd[i]:
+                    weights[j] = i + 1
+                    break
+        weights
+        weights = list(map(int, weights))
+
+        chain = [[0], [132.95, 442.89, 454.21, 162.77, 75], [132.95, 442.89, 454.21, 162.77, 75],
+                 [132.95, 253.38, 257.08, 121.13, 115], [0, 151.03, 278.88, 251.73, 100, 0, 0, 0],
+                 [0, 151.03, 278.88, 251.73, 100, 0, 0, 0]]
+        for x in chain:
+            s = sum(x)
+            if s == 0:
+                continue
+            for i in range(len(x)):
+                x[i] = (i+1)*sum(x[i:])/s
+
+        chain = [item for sublist in chain for item in sublist]
+
+        config.weights = []
+        for i in range(len(weights)):
+            config.weights.append(chain[weights[i]])
+
     config.input_size = train_set[list(train_set.keys())[0]].shape[1]
 
     x_test = {}
