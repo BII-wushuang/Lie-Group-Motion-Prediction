@@ -180,9 +180,6 @@ class HMRWrapper(RNNCell):
         output = tf.matmul(output, self.w_out) + self.b_out
         output = tf.add(output, inputs)
 
-        if self.config.datatype == 'xyz':
-            output = xyz_resize(output, self.config)
-
         return output, new_state
 
 
@@ -365,41 +362,3 @@ def hmr_cell(h, c_h, config):
                 c_h = tf.nn.dropout(c_h, config.keep_prob)
 
     return final_hidden_states, final_cell_states, final_global_states
-
-def xyz_resize(prediction, config):
-    nframes = config.batch_size
-    prediction = tf.reshape(prediction,[nframes,-1,3])
-    njoints = prediction.get_shape().as_list()[1]
-    xyz_resize = []
-    index = config.chain_idx
-
-    for n in range(nframes):
-        bone_resize = []
-        new_xyz = []
-        bone_length = []
-        for k in range(len(index)):
-            for i in range(len(index[k])):
-                if i == 0:
-                    bone_resize.append(tf.constant([0., 0., 0.]))
-                    bone_length.append(tf.constant(0.0))
-                else:
-                    bone = prediction[n,index[k][i],:] - prediction[n,index[k][i-1],:]
-                    bone_hat = bone/tf.norm(bone)
-                    new_bone = bone_hat*config.bone[index[k][i]][0]
-                    bone_resize.append(new_bone)
-                    bone_length.append(tf.norm(new_bone))
-
-        for k in range(len(index)):
-            for i in range(len(index[k])):
-                if i == 0:
-                    if k<3:
-                        new_xyz.append(tf.constant([0., 0., 0.]))
-                    else:
-                        new_xyz.append(new_xyz[14])
-                else:
-                    new_xyz.append(new_xyz[index[k][i-1]] + bone_resize[index[k][i]])
-        xyz_resize.append(new_xyz)
-
-    xyz_resize = tf.stack(xyz_resize)
-    xyz_resize = tf.reshape(xyz_resize,[nframes,-1])
-    return xyz_resize
