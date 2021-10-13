@@ -11,6 +11,7 @@ import re
 import scipy.io as sio
 import general_utils as data_utils
 import timeit
+import random
 
 
 tf.app.flags.DEFINE_string("dataset", "Human", "Articulate object dataset: 'Human' or 'Fish' or 'Mouse'.")
@@ -23,8 +24,8 @@ h3.6m_action_list = ['directions', 'discussion', 'eating', 'greeting', 'phoning'
 mouse/fish_action = 'default'
 '''
 tf.app.flags.DEFINE_boolean("training", True, "Set to True for training.")
-tf.app.flags.DEFINE_boolean("visualize", True, "Set to True for visualization.")
-tf.app.flags.DEFINE_boolean("longterm", False, "Set to True for super long-term prediction.")  #if longterm is true, action only can be: 'walking', 'eating' or 'smoking'
+tf.app.flags.DEFINE_boolean("visualize", False, "Set to True for visualization.")
+tf.app.flags.DEFINE_boolean("longterm", False, "Set to True for super long-term prediction.")  #if longterm is true, action defaults to 'walking'
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -49,8 +50,6 @@ def train():
     sess_config.allow_soft_placement = True
     sess_config.log_device_placement = False
     sess = tf.Session(config=sess_config)
-
-    tf.set_random_seed(112858)
 
     # Define cost function
     loss = eval('loss_functions.' + config.loss + '_loss(prediction, labels, config)')
@@ -195,18 +194,31 @@ def predict():
     return y_predict
 
 
-def main(_):
+def restore(v_data, start_frame=None):
+    batch_size = v_data.shape[0]
+    nframes = v_data.shape[1]
+    v_data = data_utils.unNormalizeData(v_data.reshape(-1, config.input_size), config.data_mean, config.data_std, config.dim_to_ignore)
+    v_data = v_data.reshape([batch_size, nframes, -1])
+    if start_frame is not None:
+        v_data = np.concatenate([start_frame, v_data], axis=1)
+        for i in range(1, nframes+1):
+            v_data[:, i, :] += v_data[:, i-1, :]
+        v_data = v_data[:, 1:, :]
+    return v_data
 
-    tf.set_random_seed(112858)
+
+def main(_):
+    random.seed(0)
+    np.random.seed(123456789)
+    tf.set_random_seed(123456789)
 
     global config, actions, checkpoint_dir, output_dir, train_set, test_set, x_test, y_test, dec_in_test
 
     config = training_config.train_Config(FLAGS.dataset, FLAGS.datatype, FLAGS.action)
 
     if FLAGS.longterm == True:
+        config.filename = 'walking'
         config.output_window_size = 100
-        if FLAGS.action not in ['walking', 'eating', 'smoking']:
-            raise Exception("Invalid action! For long-term prediction, action can only be 'walking', 'smoking' or 'eating'.")
 
     # Define checkpoint & output directory
     checkpoint_dir, output_dir = create_directory(config)
@@ -248,25 +260,20 @@ def main(_):
     for action in test_actions:
 
         if config.datatype == 'lie':
+            y_predict[action] = restore(y_predict[action])
+            y_test[action] = restore(y_test[action])
             mean_error, _ = data_utils.mean_euler_error(config, action, y_predict[action], y_test[action])
             sio.savemat(output_dir + 'error_' + action + '.mat', dict([('error', mean_error)]))
 
             for i in range(y_predict[action].shape[0]):
-                if config.dataset == 'Human':
-                    y_p = data_utils.unNormalizeData(y_predict[action][i], config.data_mean, config.data_std, config.dim_to_ignore)
-                    y_t = data_utils.unNormalizeData(y_test[action][i], config.data_mean, config.data_std, config.dim_to_ignore)
-                    expmap_all = data_utils.revert_coordinate_space(np.vstack((y_t, y_p)), np.eye(3), np.zeros(3))
-                    y_p = expmap_all[config.test_output_window:]
-                    y_t = expmap_all[:config.test_output_window]
-                else:
-                    y_p = y_predict[action][i]
-                    y_t = y_test[action][i]
+                y_p = y_predict[action][i]
+                y_t = y_test[action][i]
 
                 sio.savemat(output_dir + 'prediction_lie_' + action + '_' + str(i) + '.mat', dict([('prediction', y_p)]))
                 sio.savemat(output_dir + 'gt_lie_' + action + '_' + str(i) + '.mat', dict([('gt', y_t)]))
 
                 # Forward Kinematics to obtain 3D xyz locations
-                # y_p[:,0:6] = y_t[:,0:6]
+                y_p[:,0:6] = y_t[:,0:6]
                 y_p_xyz = data_utils.fk(y_p, config)
                 y_t_xyz = data_utils.fk(y_t, config)
 

@@ -153,15 +153,9 @@ def inverse_kinematics(data, config):
     joint_xyz = data.reshape([nframes, -1, 3])
     njoints = joint_xyz.shape[1]
 
-    lie_parameters = np.zeros((nframes, njoints, 6))
+    lie_parameters = np.zeros((nframes, njoints*3+3))
 
     for i in range(nframes):
-        lie_parameters[i, 0, 3:6] = joint_xyz[i, 0, :]
-
-        for j in range(njoints - 1):
-            lie_parameters[i, j + 1, 3] = np.linalg.norm(
-                joint_xyz[i, j + 1, :] - joint_xyz[i, j, :])
-
         for j in range(njoints - 2, -1, -1):
             v = np.squeeze(joint_xyz[i, j + 1, :] - joint_xyz[i, j, :])
             vhat = v / np.linalg.norm(v)
@@ -171,9 +165,15 @@ def inverse_kinematics(data, config):
             else:
                 u = np.squeeze(joint_xyz[i, j, :] - joint_xyz[i, j - 1, :])
                 uhat = u / np.linalg.norm(u)
+
+            if np.linalg.norm(u) == 0:
+                uhat = np.array([1, 0, 0])
+            if np.linalg.norm(v) == 0:
+                vhat = np.array([1, 0, 0])
+
             A = expmap2rotmat(findrot(np.array([1, 0, 0]), np.squeeze(uhat))).T
             B = expmap2rotmat(findrot(np.array([1, 0, 0]), np.squeeze(vhat)))
-            lie_parameters[i, j, 0:3] = np.squeeze(rotmat2expmap(np.matmul(A, B)))
+            lie_parameters[i, (j+1)*3:(j+2)*3] = np.squeeze(rotmat2expmap(np.matmul(A, B)))
 
     return lie_parameters
 
@@ -400,101 +400,29 @@ def create_directory(config):
     return [checkpoint_dir, output_dir]
 
 
-def revert_coordinate_space(channels, R0, T0):
-    """
-    Copied from https://github.com/una-dinosauria/human-motion-prediction
-    """
-    n, d = channels.shape
+def forward_kinematics_h36m(angles, config):
+    nframes = len(angles)
+    njoints = len(config.parents)
+    xyz = np.zeros([nframes, njoints, 3])
+    R = np.zeros([njoints, 3, 3])
 
-    channels_rec = copy.copy(channels)
-    R_prev = R0
-    T_prev = T0
-    rootRotInd = np.arange(3, 6)
+    angles = np.reshape(angles, [nframes, -1, 3])
+    if angles.shape[1] > njoints:
+        angles = angles[:, 1:, :]
 
-    # Loop through the passed posses
-    for ii in range(n):
-        R_diff = expmap2rotmat(channels[ii, rootRotInd])
-        R = R_diff.dot(R_prev)
-
-        channels_rec[ii, rootRotInd] = np.reshape(rotmat2expmap(R), 3)
-        T = T_prev + ((R_prev.T).dot(np.reshape(channels[ii, :3], [3, 1]))).reshape(-1)
-        channels_rec[ii, :3] = T
-        T_prev = T
-        R_prev = R
-
-    return channels_rec
-
-
-def forward_kinematics_h36m(angles):
-    """
-    Modified from https://github.com/una-dinosauria/human-motion-prediction
-    """
-    parent = np.array([0, 1, 2, 3, 4, 5, 1, 7, 8, 9, 10, 1, 12, 13, 14, 15, 13,
-                       17, 18, 19, 20, 21, 20, 23, 13, 25, 26, 27, 28, 29, 28, 31]) - 1
-
-    offset = np.array([[0., 0., 0.],
-                       [-132.95, 0., 0.],
-                       [0., -442.89, 0.],
-                       [0., -454.21, 0.],
-                       [0., 0., 162.77],
-                       [0., 0., 75.],
-                       [132.95, 0., 0.],
-                       [0., -442.89, 0.],
-                       [0., -454.21, 0.],
-                       [0., 0., 162.77],
-                       [0., 0., 75.],
-                       [0., 0., 0.],
-                       [0., 233.38, 0.],
-                       [0., 257.08, 0.],
-                       [0., 121.13, 0.],
-                       [0., 115., 0.],
-                       [0., 257.08, 0.],
-                       [0., 151.03, 0.],
-                       [0., 278.88, 0.],
-                       [0., 251.73, 0.],
-                       [0., 0., 0.],
-                       [0., 0., 100.],
-                       [0., 137.5, 0.],
-                       [0., 0., 0.],
-                       [0., 257.08, 0.],
-                       [0., 151.03, 0.],
-                       [0., 278.88, 0.],
-                       [0., 251.73, 0.],
-                       [0., 0., 0.],
-                       [0., 0., 100.],
-                       [0., 137.5, 0.],
-                       [0., 0., 0.]])
-
-    expmapInd = np.split(np.arange(4, 100) - 1, 32)
-
-    # Structure that indicates parents for each joint
-    njoints = 32
-    xyzStruct = [dict() for x in range(njoints)]
-
-    for i in np.arange(njoints):
-        thisRotation = expmap2rotmat(angles[expmapInd[i]])
-
-        if parent[i] == -1:  # Root node
-            xyzStruct[i]['rotation'] = thisRotation
-            # xyzStruct[i]['rotation'] = np.eye(3)
-            xyzStruct[i]['xyz'] = np.reshape(offset[i, :], (1, 3))
-        else:
-            xyzStruct[i]['xyz'] = (offset[i, :]).dot(xyzStruct[parent[i]]['rotation']) + xyzStruct[parent[i]]['xyz']
-            xyzStruct[i]['rotation'] = thisRotation.dot(xyzStruct[parent[i]]['rotation'])
-
-    xyz = [xyzStruct[i]['xyz'] for i in range(njoints)]
-    xyz = np.array(xyz).squeeze()
-    xyz = xyz[:, [0, 2, 1]]
-    return xyz
+    for frame in range(nframes):
+        for i in range(njoints):
+            if config.parents[i] == -1:  # Root node
+                R[i] = np.eye(3)
+            else:
+                xyz[frame, i] = config.offsets[i].dot(R[config.parents[i]]) + xyz[frame, config.parents[i]]
+                R[i] = expmap2rotmat(angles[frame, i]).dot(R[config.parents[i]])
+    return xyz[:,:,[0,2,1]]
 
 
 def fk(data, config):
     if config.dataset == 'Human':
-        xyz = []
-        for frame in range(config.test_output_window):
-            xyz_new = forward_kinematics_h36m(data[frame])
-            xyz.append(xyz_new)
-        xyz = np.array(xyz)
+        xyz = forward_kinematics_h36m(data, config)
     else:
         xyz = forward_kinematics(data, config)
     return xyz
@@ -508,12 +436,8 @@ def mean_euler_error(config, action, y_predict, y_test):
     mean_errors = np.zeros([n_batch, nframes])
     for i in range(n_batch):
         for j in range(nframes):
-            if config.dataset == 'Human':
-                pred = unNormalizeData(y_predict[i], config.data_mean, config.data_std, config.dim_to_ignore)
-                gt = unNormalizeData(y_test[i], config.data_mean, config.data_std, config.dim_to_ignore)
-            else:
-                pred = copy.deepcopy(y_predict[i])
-                gt = copy.deepcopy(y_test[i])
+            pred = copy.deepcopy(y_predict[i])
+            gt = copy.deepcopy(y_test[i])
             for k in np.arange(3, pred.shape[1] - 2, 3):
                 pred[j, k:k + 3] = rotmat2euler(expmap2rotmat(pred[j, k:k + 3]))
                 gt[j, k:k + 3] = rotmat2euler(expmap2rotmat(gt[j, k:k + 3]))

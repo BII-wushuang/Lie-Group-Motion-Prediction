@@ -31,45 +31,12 @@ def read_human(config, training):
             config.dataset, seq_length_in, seq_length_out))
 
     if config.filename == 'all':
-        actions = ['directions', 'discussion', 'eating', 'greeting', 'phoning', 'posing', 'purchases', 'sitting',
-                   'sittingdown', 'smoking', 'takingphoto', 'waiting', 'walking', 'walkingdog', 'walkingtogether']
+        actions = ['discussion', 'greeting', 'posing', 'walkingdog', 'directions', 'eating', 'phoning','purchases', 'sitting',
+                   'sittingdown', 'smoking', 'takingphoto', 'waiting', 'walking', 'walkingtogether']
+        # actions = ['walking', 'eating', 'smoking', 'discussion', 'directions', 'greeting', 'phoning', 'posing',
+        #            'purchases', 'sitting', 'sittingdown', 'takingphoto', 'waiting', 'walkingdog', 'walkingtogether']
     else:
         actions = [config.filename]
-
-    # Bone lengths
-    bone = np.array([[0., 0., 0.],
-                     [132.95, 0., 0.],
-                     [442.89, 0., 0.],
-                     [454.21, 0., 0.],
-                     [162.77, 0., 0.],
-                     [75., 0., 0.],
-                     [132.95, 0., 0.],
-                     [442.89, 0., 0.],
-                     [454.21, 0., 0.],
-                     [162.77, 0., 0.],
-                     [75., 0., 0.],
-                     [0., 0., 0.],
-                     [233.38, 0., 0.],
-                     [257.08, 0., 0.],
-                     [121.13, 0., 0.],
-                     [115., 0., 0.],
-                     [257.08, 0., 0.],
-                     [151.03, 0., 0.],
-                     [278.88, 0., 0.],
-                     [251.73, 0., 0.],
-                     [0., 0., 0.],
-                     [100., 0., 0.],
-                     [137.5, 0., 0.],
-                     [0., 0., 0.],
-                     [257.08, 0., 0.],
-                     [151.03, 0., 0.],
-                     [278.88, 0., 0.],
-                     [251.73, 0., 0.],
-                     [0., 0., 0.],
-                     [100., 0., 0.],
-                     [137.5, 0., 0.],
-                     [0., 0., 0.]])
-    config.bone = bone
 
     train_set = {}
     complete_train = []
@@ -114,6 +81,9 @@ def read_human(config, training):
     if config.datatype == 'lie':
         # Compute normalization stats
         data_mean, data_std, dim_to_ignore, dim_to_use = data_utils.normalization_stats(complete_train)
+        # The global translation and rotation are not considered since we perform procrustes alignment
+        # dim_to_ignore = [0,1,2,3,4,5] + dim_to_ignore
+        # dim_to_use = dim_to_use[6:]
         config.data_mean = data_mean
         config.data_std = data_std
         config.dim_to_ignore = dim_to_ignore
@@ -123,7 +93,6 @@ def read_human(config, training):
         train_set = data_utils.normalize_data(train_set, data_mean, data_std, dim_to_use)
         test_set = data_utils.normalize_data(test_set, data_mean, data_std, dim_to_use)
 
-
         expmapInd = np.split(np.arange(4, 100) - 1, 32)
 
         weights = np.zeros([len(config.dim_to_use)])
@@ -132,7 +101,6 @@ def read_human(config, training):
                 if config.dim_to_use[j] in expmapInd[i]:
                     weights[j] = i + 1
                     break
-        weights
         weights = list(map(int, weights))
 
         chain = [[0], [132.95, 442.89, 454.21, 162.77, 75], [132.95, 442.89, 454.21, 162.77, 75],
