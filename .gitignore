@@ -113,3 +113,5 @@ log/
 output/
 .idea/
 plots/
+
+*.mat
